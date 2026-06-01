@@ -44,6 +44,7 @@ fpm_torch_codebase/
 ├── scripts/
 │   └── run_fpm.py
 └── README.md
+```
 
 ## Install
 
@@ -55,6 +56,7 @@ conda activate fpm_torch
 pip install torch numpy matplotlib pydantic
 
 conda install -c conda-forge openexr imath
+```
 
 ## Run
 ```bash
@@ -67,8 +69,10 @@ Each experiment config has four sections:
 - setup — microscope and LED geometry
 - reconstruction — optimization settings
 - crops — crop loading or crop generation settings
+```
 
 ## Minimal Example
+```json
 {
   "dataset": {
     "sample_name": "Leech",
@@ -118,6 +122,7 @@ Each experiment config has four sections:
     "indexing": "row_major"
   }
 }
+```
 
 ## Contact
 John Meshreki
