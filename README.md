@@ -1,8 +1,10 @@
-# FPM Torch Meshreki
+# FPM Torch
 
 A PyTorch-based reconstruction pipeline for **Fourier Ptychographic Microscopy (FPM)** with config-driven experiments, flexible crop handling, EXR image loading, and crop-aware illumination geometry.
 
 This repository is designed for running and comparing FPM reconstructions across different datasets and acquisition setups while keeping experiments reproducible and easy to configure.
+
+It features the most common FPM reconstruction algorithm: embedded pupil function recovery [Ou et. al. 2014].
 
 ---
 
@@ -75,4 +77,5 @@ python scripts/run_fpm.py --config configs/experiment_leech.json
 
 ## Contact
 John Meshreki
+
 john.meshreki@gmail.com
