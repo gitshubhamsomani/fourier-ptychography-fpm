@@ -58,70 +58,19 @@ pip install torch numpy matplotlib pydantic
 conda install -c conda-forge openexr imath
 ```
 
+## Config Example
+Each experiment config (e.g. experiment_leech.json) has four sections:
+
+- dataset — input paths, filename pattern, LED coords file
+- crops — crop loading or crop generation settings
+- setup — microscope and LED geometry
+- reconstruction — optimization settings
+
+Note: The main experiment configuration includes the path to the LED coordinates file. This keeps all experiment-level information accessible from a single JSON file.
+
 ## Run
 ```bash
 python scripts/run_fpm.py --config configs/experiment_leech.json
-
-## Config Example
-Each experiment config has four sections:
-
-- dataset — input paths, filename pattern, LED coords file
-- setup — microscope and LED geometry
-- reconstruction — optimization settings
-- crops — crop loading or crop generation settings
-```
-
-## Minimal Example
-```json
-{
-  "dataset": {
-    "sample_name": "Leech",
-    "input_mode": "load_cropped_dirs",
-    "input_root": "/path/to/data",
-    "file_pattern": "image_x_{x}_y_{y}.exr",
-    "coords_file": "configs/led_coords_leech.json",
-    "nused": 293,
-    "save_root": "/path/to/output"
-  },
-  "setup": {
-    "wavelength_um": 0.519,
-    "objective_na": 0.3,
-    "magnification": 10.2,
-    "camera_pixel_um": 6.4,
-    "patch_size": [512, 512],
-    "image_center": [256, 256],
-    "led_distance_um": 66500.0,
-    "led_coord_unit_um": 63.0,
-    "led_coord_center": [960.0, 540.0],
-    "led_coords_convention": "xy",
-    "led_axis_signs": [-1, -1],
-    "z0": 0.0
-  },
-  "reconstruction": {
-    "tol": 0.01,
-    "max_iter": 10,
-    "min_iter": 1,
-    "monotone": true,
-    "step_size": 0.01,
-    "op_alpha": 1.0,
-    "op_beta": 1000.0,
-    "display": "full",
-    "mode": "fourier",
-    "use_default_p0": true,
-    "optimize_p_flags": [true],
-    "pupil_scaling_factors": [1.0]
-  },
-  "crops": {
-    "mode": "load",
-    "selection": "single",
-    "crop_dir": "crop_82",
-    "full_image_shape": [3753, 5634],
-    "crop_size": [512, 512],
-    "overlap": 0.30,
-    "max_crops": 150,
-    "indexing": "row_major"
-  }
-}
 ```
 
 ## Contact
