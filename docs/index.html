@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raspberry Pi Fourier Ptychographic Microscope</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <nav>
+        <ul>
+            <li><a href="#abstract">Abstract</a></li>
+            <li><a href="#method">Method</a></li>
+            <li><a href="#hardware">Hardware</a></li>
+            <li><a href="#software">Software</a></li>
+            <li><a href="#results">Results</a></li>
+            <li><a href="#discussion">Discussion</a></li>
+            <li><a href="#references">References</a></li>
+        </ul>
+    </nav>
+
+    <header>
+        <h1>Development of a Low-Cost Fourier Ptychographic Microscope Using Raspberry Pi 3 Model B and Unicorn HAT Mini LED Array</h1>
+        <p class="authors">Atharva Atul Devare &nbsp;&amp;&nbsp; Shubham Balasaheb Somani</p>
+        <p class="affiliations">
+            M.Sc. Mechatronics, 4th Semester: Chair for Computational Sensing &amp; Communications Engineering,
+            University of Siegen
+        </p>
+        <p class="affiliations">Supervisors: Dr. John Meshreki &nbsp;&middot;&nbsp; Dr. Ivo Herke</p>
+        <p class="venue">Semester Project Report &middot; July 2026</p>
+
+        <div class="link-row">
+            <a class="link-btn" href="report_21_07_updated.pdf">📄 Full Report</a>
+            <a class="link-btn" href="FPM_Project_Final%20Presentation.pptx">🖥️ Final Presentation</a>
+            <a class="link-btn" href="FPM%20Midterm_Updated.pptx">🖥️ Midterm Slides</a>
+            <a class="link-btn" href="https://github.com/johnmeshreki/FPM">💻 Reconstruction Code</a>
+        </div>
+    </header>
+
+    <div class="hero-image-wrap">
+        <img class="hero-image" src="assets/setup-studio.png" alt="Assembled FPM instrument: Raspberry Pi, reversed-lens camera module, 3D-printed housing and Unicorn HAT Mini LED array">
+    </div>
+
+    <div class="container">
+
+        <main>
+
+            <section id="abstract">
+                <h2>Abstract</h2>
+                <p>This report presents the design, implementation and evaluation of a low-cost Fourier
+                    Ptychographic Microscope (FPM) built around a <strong>Raspberry Pi 3 Model B</strong>, a
+                    <strong>Raspberry Pi Camera Module V2.1 NoIR</strong> (Sony IMX219 sensor) and a
+                    <strong>Pimoroni Unicorn HAT Mini 17&times;7 RGB LED array</strong>. The instrument sequentially
+                    illuminates a sample from up to 119 discrete LED positions and captures one low-resolution
+                    image per illumination angle; a GPU-accelerated, PyTorch-based reconstruction pipeline then
+                    recovers a higher-resolution complex image using the embedded pupil function recovery (EPRY)
+                    alternating-minimization algorithm, with a demosaiced-reconstruction (DR) pre-processing
+                    strategy chosen for its stability on the low-cost Bayer sensor. To compensate for the
+                    mechanical assembly tolerances of the hand-built LED array and 3D-printed housing, a
+                    dark-field LED position self-calibration step is applied prior to reconstruction. Optical
+                    alignment was validated on a USAF-1951 resolution target, resolving spatial frequencies up to
+                    approximately 180 line pairs/mm (&asymp; 2.8 &micro;m features), and a full reconstruction run
+                    combining 199 raw low-resolution captures produced a 25-megapixel image with a reported
+                    sub-micron resolution of approximately 780 nm.</p>
+
+                <div class="stat-row">
+                    <div class="stat"><span class="stat-value">25 MP</span><span class="stat-label">Reconstructed image</span></div>
+                    <div class="stat"><span class="stat-value">780 nm</span><span class="stat-label">Sub-micron resolution</span></div>
+                    <div class="stat"><span class="stat-value">~180 lp/mm</span><span class="stat-label">USAF resolved</span></div>
+                    <div class="stat"><span class="stat-value">119 LEDs</span><span class="stat-label">17&times;7 illumination array</span></div>
+                    <div class="stat"><span class="stat-value">199</span><span class="stat-label">Raw captures / reconstruction</span></div>
+                </div>
+            </section>
+
+            <section id="introduction">
+                <h2>Introduction</h2>
+                <p>Conventional microscopy is fundamentally constrained by a trade-off between field of view (FOV)
+                    and spatial resolution: the space-bandwidth product (SBP), the number of resolvable
+                    points in an image, is limited by the objective's numerical aperture (NA) and the pixel
+                    count of the detector. Increasing SBP through larger, more highly corrected optics or
+                    mechanical scanning adds cost, bulk and complexity, which is prohibitive for portable,
+                    low-resource settings.</p>
+                <p>Fourier Ptychographic Microscopy (FPM) addresses this trade-off computationally rather than
+                    optically. Instead of a high-NA objective, FPM captures a sequence of low-resolution images of
+                    the same FOV under illumination from different angles: typically provided by an LED
+                    array beneath the sample. Each oblique illumination angle shifts a corresponding patch of the
+                    sample's spatial-frequency spectrum into the pass-band of a low-NA objective; combining many
+                    such measurements lets the synthetic aperture (and hence resolution) substantially exceed that
+                    of the physical objective, while retaining the wide native FOV.</p>
+                <p>This project builds on the low-cost, open-hardware FPM demonstrated by Aidukas et al.
+                    (Raspberry Pi + 3D-printed opto-mechanics, ~$150 component cost) and the LED self-calibration
+                    method of Eckert, Phillips &amp; Waller, adapting both to a different, coarser 17&times;7
+                    Unicorn HAT Mini illumination array and a GPU-accelerated EPRY reconstruction pipeline built
+                    from scratch for this project. The reconstruction was evaluated on a USAF-1951 resolution
+                    target and on biological tissue: intestine and mushroom sections.</p>
+            </section>
+
+            <section id="method">
+                <h2>Theoretical Background &amp; Method</h2>
+
+                <h3>Forward imaging model</h3>
+                <p>For a thin, weakly scattering sample, the image captured under illumination from the
+                    <em>m</em>-th LED is modelled as the squared magnitude of an inverse Fourier transform of the
+                    product of the sample's spatial-frequency spectrum and the objective pupil function, evaluated
+                    with a shift corresponding to the illumination angle:</p>
+                <p class="eq">I<sub>m</sub>(r) = | F<sup>&minus;1</sup> { P(u) &middot; O(u &minus; u<sub>m</sub>) } |&sup2;</p>
+                <p>Sequentially stepping through LED positions whose sub-apertures overlap in the Fourier domain
+                    (~60&ndash;70% overlap between adjacent apertures) provides enough redundant phase information
+                    for iterative phase-retrieval algorithms to stitch together a wide-support, high-resolution
+                    spectrum. The synthetic NA of the reconstructed image approaches
+                    NA<sub>syn</sub> &asymp; NA<sub>obj</sub> + NA<sub>illum</sub>, decoupling resolution from the
+                    physical objective's NA.</p>
+
+                <figure class="fig-figure">
+                    <img src="assets/fpm-concept-diagram.png" alt="Diagram of time-sequential angular illumination and frequency-domain stitching in Fourier ptychography">
+                    <figcaption><strong>Fig. 1.</strong> Time-sequential image acquisition under angular
+                        illumination: each LED shifts a different region of the sample spectrum into the objective
+                        passband; these low-resolution frequency patches are iteratively stitched into a
+                        high-resolution reconstruction.</figcaption>
+                </figure>
+
+                <h3>EPRY alternating-minimization reconstruction</h3>
+                <p>The reconstruction follows the embedded pupil function recovery (EPRY) alternating-minimization
+                    scheme. For each LED, an exit-wave estimate is formed from the current object and pupil
+                    estimates; a Fourier-domain magnitude-projection step replaces its amplitude with the
+                    square-root of the measured intensity while preserving phase, and the residual drives
+                    simultaneous gradient-descent updates of the object spectrum and pupil function. Iterating
+                    this over all LEDs and multiple epochs jointly recovers the high-resolution complex object
+                    <em>and</em> the objective's pupil (including its aberrations) without a separate
+                    aberration-characterisation measurement.</p>
+
+                <h3>LED position self-calibration</h3>
+                <p>Because the Unicorn HAT Mini array is hand-mounted with millimetre-level mechanical tolerance,
+                    a dark-field (DF) self-calibration stage is applied before reconstruction, following Eckert et
+                    al. LEDs are split into bright-field (BF, illumination NA inside the objective NA) and
+                    dark-field (DF, illumination NA outside it). For each DF LED, the in-pupil region of the raw
+                    image's spectral amplitude is masked out and the dominant remaining peak near the nominal
+                    k-vector is taken as the corrected illumination coordinate. BF LEDs are left at nominal
+                    (design-file) positions, since their fringe pattern is confounded by the sample's own texture.</p>
+
+                <h3>Demosaicing strategy: DR vs. SSR</h3>
+                <p>The IMX219 sensor's Bayer filter means each raw frame is a sparse, single-channel mosaic. Two
+                    strategies were evaluated: <strong>Demosaiced Reconstruction (DR)</strong>: bilinear
+                    interpolation (OpenCV) reconstructs full RGB channels before FPM recovery, giving fewer
+                    unknowns, faster and more stable convergence: and <strong>Sparsely-Sampled
+                    Reconstruction (SSR)</strong>: the solver updates only true measured pixels, which is
+                    mathematically cleaner in simulation but more sensitive to real-world read noise. <strong>DR
+                    was selected as the production pipeline</strong> for its repeatable stability and speed; SSR
+                    is retained as a benchmark.</p>
+            </section>
+
+            <section id="hardware">
+                <h2>Hardware &amp; System Design</h2>
+
+                <div class="img-pair">
+                    <figure class="fig-figure">
+                        <img src="assets/setup-studio.png" alt="Assembled FPM instrument: Raspberry Pi, reversed-lens camera module, 3D-printed housing and Unicorn HAT Mini LED array">
+                        <figcaption><strong>Fig. 2.</strong> Assembled instrument: Raspberry Pi 3, reversed-lens
+                            Camera Module V2.1 NoIR, 3D-printed housing and Unicorn HAT Mini LED array.</figcaption>
+                    </figure>
+                    <figure class="fig-figure">
+                        <img src="assets/camera-mount-closeup.jpg" alt="Close-up of the 3D-printed camera holder and focusing stage mounted on the Raspberry Pi">
+                        <figcaption><strong>Fig. 3.</strong> Close-up of the 3D-printed camera holder / focusing
+                            stage, spring-loaded against the fine-pitch focus screw, mounted directly above the
+                            Unicorn HAT Mini array.</figcaption>
+                    </figure>
+                </div>
+
+                <table class="spec-table">
+                    <caption>Table 1. Core hardware &amp; software components</caption>
+                    <tr><th>Controller</th><td>Raspberry Pi 3 Model B</td></tr>
+                    <tr><th>Camera</th><td>Raspberry Pi Camera Module V2.1 NoIR: Sony IMX219, 8 MP, 1.12 &micro;m pixel pitch, lens reversed for close-focus imaging</td></tr>
+                    <tr><th>Illumination</th><td>Pimoroni Unicorn HAT Mini: 17&times;7 (119-LED) RGB array</td></tr>
+                    <tr><th>Reconstruction compute</th><td>PyTorch (GPU-accelerated where available), NumPy, SciPy, OpenCV</td></tr>
+                    <tr><th>Working distance</th><td>&asymp; 10 mm (object to reversed camera lens)</td></tr>
+                    <tr><th>Test / reference samples</th><td>USAF-1951 resolution target; small intestine section; mushroom section</td></tr>
+                </table>
+
+                <table class="spec-table">
+                    <caption>Table 2. Optical &amp; illumination parameters: Intestine/USAF setup (green, &lambda; &asymp; 530 nm)</caption>
+                    <tr><th>Objective NA</th><td>0.15</td></tr>
+                    <tr><th>Magnification</th><td>1.5&times;</td></tr>
+                    <tr><th>LED array grid</th><td>17&times;7 (119 LEDs)</td></tr>
+                    <tr><th>LED pitch</th><td>3.3 mm</td></tr>
+                    <tr><th>Array&ndash;sample distance</th><td>62 mm</td></tr>
+                    <tr><th>Working distance</th><td>&asymp; 10 mm</td></tr>
+                    <tr><th>Reconstruction crop size</th><td>256&times;256 px</td></tr>
+                    <tr><th>DF LED self-calibration</th><td>On</td></tr>
+                </table>
+
+                <h3>Assembly modifications</h3>
+                <p>The mechanical assembly used as a starting point was designed around a different LED footprint
+                    and required two changes for the 17&times;7 Unicorn HAT Mini:</p>
+                <ul>
+                    <li><strong>Camera mounting offset:</strong> the camera mount and aperture were shifted
+                        ~8 mm off the housing's original geometric centre, since the physical centre LED of the
+                        17&times;7 array does not coincide with the point the housing was designed around,
+                        which is required for symmetric, on-axis illumination coverage.</li>
+                    <li><strong>Lens inversion / re-mounting:</strong> the stock V2.1 lens is designed for
+                        infinite-conjugate imaging, causing the camera to persistently focus on the LED array
+                        plane rather than the sample. Adjusting mount height alone did not fix this; the lens was
+                        physically removed and re-mounted in reversed orientation, achieving stable focus at
+                        &asymp; 10 mm working distance: the same principle used in other reversed-lens,
+                        low-cost microscopy builds.</li>
+                </ul>
+
+                <figure class="fig-figure">
+                    <img src="assets/camera-mount-detail.jpg" alt="Detail of the reversed camera lens and spring-loaded focusing stage">
+                    <figcaption><strong>Fig. 4.</strong> Reversed-lens camera holder on the spring-loaded focusing
+                        stage: the fine-pitch screw pushes down against spring counter-force for
+                        high-precision manual focus.</figcaption>
+                </figure>
+            </section>
+
+            <section id="software">
+                <h2>Software Architecture</h2>
+                <p>The reconstruction codebase is a configuration-driven Python package: each experiment (e.g.
+                    <code>experiment_intestine.json</code>, <code>experiment_mushroom.json</code>) specifies
+                    dataset paths, crop selection, optical setup parameters and reconstruction hyper-parameters, so
+                    new samples can be processed by writing a new JSON file rather than editing code.</p>
+                <ul>
+                    <li><strong>live_script</strong>: live-preview acquisition utility streaming a continuous
+                        camera feed with the LED array illuminated, used to verify sample-to-camera alignment and
+                        focus before any data is recorded</li>
+                    <li><strong>capture</strong>: data-acquisition script: captures the dark frame, then
+                        sequentially illuminates each LED, saving one raw (DNG) + one JPEG image per LED position
+                        together with the LED coordinate file</li>
+                    <li><strong>config_models</strong>: validates/parses each experiment's JSON configuration</li>
+                    <li><strong>geometry</strong>: derives pupil radius, per-LED illumination NA and k-vectors</li>
+                    <li><strong>io</strong>: loads raw LED image stacks, LED coordinates, dark-frames</li>
+                    <li><strong>tiling</strong>: splits the 2464&times;3280 camera frame into GPU-tractable crops</li>
+                    <li><strong>calibration</strong>: dark-field LED position self-calibration</li>
+                    <li><strong>reconstruction</strong>: EPRY alternating-minimization (PyTorch, GPU-capable)</li>
+                    <li><strong>logger</strong>: structured per-run parameters, convergence metrics, artefact paths</li>
+                    <li><strong>pipeline / run_fpm</strong>: orchestrates dark-frame subtraction, calibration, tiling and reconstruction from the CLI</li>
+                </ul>
+
+                <h3>Full acquisition-to-reconstruction pipeline</h3>
+                <ol>
+                    <li><strong>Pre-processing:</strong> dark-frame subtraction, exposure normalisation, Bayer
+                        demosaicing (bilinear/OpenCV), segmentation into overlapping 128&times;128-px tiles
+                        (28 px overlap).</li>
+                    <li><strong>Iterative phase retrieval:</strong> per-tile spectrum refinement via
+                        Fourier-domain amplitude replacement and a second-order quasi-Newton update with adaptive
+                        step size; centre-outward tile ordering reduces edge distortion.</li>
+                    <li><strong>Digital calibration:</strong> EPRY pupil-aberration recovery; DF LED self-calibration;
+                        chromatic-defocus correction via 30 Zernike coefficients per channel; SIFT alignment of
+                        the independently reconstructed R/G/B channels.</li>
+                    <li><strong>Post-processing:</strong> histogram equalisation across tiles and seamless
+                        Fiji/ImageJ blending into the final field-of-view image.</li>
+                </ol>
+                <p>Applied to a full acquisition of 199 raw captures, this pipeline produced a single 25-megapixel,
+                    full-colour reconstruction at &asymp; 780 nm resolution, recovering both amplitude and optical
+                    phase: the latter enabling imaging of unstained, transparent samples.</p>
+
+                <h3>Standard Operating Procedure (summary)</h3>
+                <ol>
+                    <li>Flash Raspberry Pi OS, enable the camera interface.</li>
+                    <li>Connect Camera Module V2.1 NoIR via CSI; reverse-mount its lens for close-focus imaging.</li>
+                    <li>Mount the Unicorn HAT Mini on GPIO, camera aperture offset &asymp; 8 mm to centre on the array's centre LED.</li>
+                    <li>Install dependencies (PyTorch, OpenCV, NumPy, SciPy, Matplotlib, Pillow).</li>
+                    <li>Run <code>live_script</code> for a continuous camera preview to verify sample-to-camera alignment and focus before recording.</li>
+                    <li>Optional: once alignment is confirmed, cover the setup with a box/enclosure to shield it from ambient light.</li>
+                    <li>Run the capture script: (a) capture a dark frame with all LEDs off as the fixed-pattern-noise reference; (b) sequentially illuminate all 119 LEDs, capturing DNG+JPEG pairs.</li>
+                    <li>Write an experiment configuration JSON (dataset paths, crop selection, optics, hyper-parameters).</li>
+                    <li>Run the pipeline: dark-frame subtraction &rarr; demosaicing/normalisation &rarr; optional DF
+                        self-calibration &rarr; tiling &rarr; EPRY reconstruction &rarr; tile blending &rarr; save outputs + run log.</li>
+                    <li>Inspect amplitude/phase outputs; adjust calibration or hyper-parameters and repeat if required.</li>
+                </ol>
+            </section>
+
+            <section id="results">
+                <h2>Experimental Results</h2>
+
+                <table class="spec-table">
+                    <caption>Table 3. Acquisition / reconstruction runs performed</caption>
+                    <tr><th>Sample</th><th>Config.</th><th>Crop size</th><th>Max. iter.</th><th>LED self-cal.</th></tr>
+                    <tr><td>USAF-1951 target (144 lp/mm)</td><td>Intestine/USAF (0.15 NA, 1.5&times;)</td><td>256&times;256</td><td>20</td><td>On</td></tr>
+                    <tr><td>Small intestine section</td><td>Intestine/USAF (0.15 NA, 1.5&times;)</td><td>256&times;256</td><td>20</td><td>On</td></tr>
+                    <tr><td>Mushroom section</td><td>Intestine/USAF (0.15 NA, 1.5&times;)</td><td>256&times;256</td><td>20</td><td>On</td></tr>
+                </table>
+
+                <h3>Raw data acquisition</h3>
+                <p>Each of up to 119 LEDs is fired in sequence while the camera captures one raw frame per angle,
+                    in both DNG (Bayer raw) and JPEG format. Individual low-resolution frames are strongly defocused
+                    / low-contrast: the FPM algorithm recovers detail by combining hundreds of these frequency
+                    patches, not from any single capture.</p>
+
+                <div class="img-pair">
+                    <figure class="fig-figure">
+                        <img src="assets/raw-usaf-green-1.jpg" alt="Single raw USAF chart capture under green LED illumination">
+                        <figcaption><strong>Fig. 5.</strong> Single-LED raw capture, green channel: USAF-1951 target.</figcaption>
+                    </figure>
+                    <figure class="fig-figure">
+                        <img src="assets/raw-led-capture-blue.png" alt="Single raw capture under blue LED illumination, biological sample">
+                        <figcaption><strong>Fig. 6.</strong> Single-LED raw capture, blue channel: biological sample.</figcaption>
+                    </figure>
+                </div>
+
+                <figure class="fig-figure fig-video">
+                    <video controls muted loop playsinline>
+                        <source src="Raw Capture animation_1.mp4" type="video/mp4">
+                    </video>
+                    <figcaption><strong>Fig. 7.</strong> Sequential LED illumination sweep: raw data capture
+                        across the 17&times;7 array, one frame per illumination angle.</figcaption>
+                </figure>
+
+                <h3>Development process: from underexposed to usable data</h3>
+                <p>Early acquisitions, on both the USAF-1951 target (blue-LED illumination) and an initial
+                    intestine sample, reconstructed poorly, with low contrast, missing fine detail and visible
+                    artefacts. The root cause was severe underexposure, particularly for high-angle (dark-field)
+                    LEDs, which starved the pipeline of high-frequency information. Exposure time for dark-field
+                    LEDs was increased roughly 20&ndash;30&times;, with multiple frames averaged per LED to raise
+                    signal-to-noise. This confirmed the bottleneck was acquisition, not the reconstruction
+                    algorithm, and set up all subsequent, successful runs below.</p>
+
+                <h3>USAF-1951 resolution validation</h3>
+                <p>The system was validated against the full USAF-1951 target: optical alignment and focus were
+                    confirmed by resolving spatial frequencies up to approximately <strong>180&ndash;181
+                    line&nbsp;pairs/mm (&asymp; 2.8 &micro;m features)</strong>, exceeding the nominal 144 lp/mm
+                    design element used for the quantitative run.</p>
+
+                <p>The target was imaged under red, green and blue LED illumination separately; each colour
+                    channel was reconstructed independently and then combined into a single image.</p>
+                <div class="img-pair">
+                    <figure class="fig-figure">
+                        <img src="assets/usaf-red-led.png" alt="Red LED single-channel USAF reconstruction attempt">
+                        <figcaption><strong>Fig. 8a.</strong> Single-colour-channel (red LED) intermediate reconstruction.</figcaption>
+                    </figure>
+                    <figure class="fig-figure">
+                        <img src="assets/usaf-combined.png" alt="Combined multi-LED USAF reconstruction, sharper bars">
+                        <figcaption><strong>Fig. 8b.</strong> Combined R/G/B reconstruction: visibly sharper bar targets after the exposure fix and LED calibration.</figcaption>
+                    </figure>
+                </div>
+
+                <figure class="fig-figure fig-wide">
+                    <img src="assets/usaf-reconstruction.png" alt="Full-field EPRY reconstruction of the USAF-1951 target showing resolved line pairs down to group element 01">
+                    <figcaption><strong>Fig. 9.</strong> Full-field EPRY reconstruction, <code>abs(O)</code>,
+                        USAF-1951 target with resolved elements from 144 lp/mm down through 01, confirming
+                        &asymp;180 lp/mm resolution across the reconstructed FOV.</figcaption>
+                </figure>
+
+                <h3>Biological sample: mushroom section</h3>
+                <p>After optimizing acquisition (increased exposure time, appropriate camera gain, improved
+                    bright-field and dark-field data capture), the final reconstruction of the mushroom sample
+                    successfully recovered the sample's structural features with enhanced contrast and finer
+                    spatial detail than any earlier attempt, validating the complete acquisition and
+                    reconstruction pipeline developed in this project.</p>
+
+                <figure class="fig-figure fig-video">
+                    <video controls muted loop playsinline>
+                        <source src="Mushroom Sample Capture.mp4" type="video/mp4">
+                    </video>
+                    <figcaption><strong>Fig. 10.</strong> Mushroom sample data capture: sequential LED
+                        illumination sweep prior to reconstruction.</figcaption>
+                </figure>
+
+                <div class="img-pair">
+                    <figure class="fig-figure">
+                        <img src="assets/mushroom-reconstruction.png" alt="Reconstructed mushroom sample showing resolved gill structure">
+                        <figcaption><strong>Fig. 11.</strong> Full-FOV reconstruction of the mushroom sample.</figcaption>
+                    </figure>
+                    <figure class="fig-figure">
+                        <img src="assets/mushroom-fullfov.png" alt="Full field of view reconstruction of the mushroom sample">
+                        <figcaption><strong>Fig. 12.</strong> EPRY reconstruction, <code>abs(O)</code>: mushroom
+                            section showing resolved gill structure.</figcaption>
+                    </figure>
+                </div>
+            </section>
+
+            <section id="discussion">
+                <h2>Discussion</h2>
+                <p>The results confirm that low-cost, consumer-grade hardware combined with a GPU-accelerated EPRY
+                    reconstruction pipeline can achieve meaningful resolution enhancement beyond the native
+                    objective NA. The USAF-1951 validation (&asymp; 180&ndash;181 lp/mm) confirms correct optical
+                    alignment and reversed-lens focusing ahead of full reconstruction. Several practical factors
+                    bound performance in this implementation:</p>
+                <ul>
+                    <li>The 17&times;7 Unicorn HAT Mini array is considerably coarser than the 15&times;15&ndash;32&times;32
+                        grids typical in comparable FPM literature systems, reducing Fourier sub-aperture overlap
+                        density and limiting achievable synthetic NA / phase-retrieval robustness at high spatial frequencies.</li>
+                    <li>The array is hand-assembled on a GPIO header without a precision mount, so LED pitch and
+                        array-to-sample distance carry millimetre-level uncertainty; DF self-calibration mitigates
+                        but does not fully eliminate this, and currently only corrects dark-field LEDs.</li>
+                    <li>Choosing DR over SSR trades theoretical reconstruction purity for stability and speed on
+                        noisy, low-cost sensor data.</li>
+                    <li>A Bayer colour sensor (vs. dedicated monochrome) discards raw pixel information through demosaicing.</li>
+                    <li>The Raspberry Pi 3 is used only for acquisition control; reconstruction is offloaded to a
+                        separate GPU-equipped machine since the Pi 3's own compute/memory is insufficient for the
+                        iterative alternating-minimization algorithm at practical crop sizes.</li>
+                </ul>
+
+                <h3>Future work</h3>
+                <ul>
+                    <li>Extend LED self-calibration to bright-field LEDs (e.g. joint optimisation with object/pupil update).</li>
+                    <li>Complete a systematic, quantitative DR-vs-SSR comparison across all sample runs.</li>
+                    <li>Upgrade to a denser LED array (e.g. 15&times;15+) to increase angular sampling density and synthetic NA.</li>
+                    <li>Port the reconstruction pipeline to run efficiently on-device or via lightweight edge-compute.</li>
+                    <li>Extend automated multi-tile stitching to mosaic full-frame, wide-FOV reconstructions.</li>
+                    <li>Apply the full pipeline to unstained, transparent biological samples to exploit recovered phase.</li>
+                    <li>Evaluate illumination multiplexing to reduce the number of captured images per reconstruction.</li>
+                    <li>Expand testing across a wider range of biological samples and repeat across multiple instrument assemblies.</li>
+                </ul>
+            </section>
+
+            <section id="references">
+                <h2>References</h2>
+                <ol class="ref-list">
+                    <li>G. Zheng, R. Horstmeyer, and C. Yang, "Wide-field, high-resolution Fourier ptychographic microscopy," <em>Nature Photonics</em>, vol. 7, pp. 739&ndash;745, 2013.</li>
+                    <li>X. Ou, G. Zheng, and C. Yang, "Embedded pupil function recovery for Fourier ptychographic microscopy," <em>Optics Express</em>, vol. 22, pp. 4960&ndash;4972, 2014.</li>
+                    <li>R. Eckert, Z. F. Phillips, and L. Waller, "Efficient illumination angle self-calibration in Fourier ptychography," <em>Applied Optics</em>, vol. 57, p. 5434, 2018.</li>
+                    <li>T. Aidukas, R. Eckert, A. R. Harvey, L. Waller, and P. C. Konda, "Low-cost, sub-micron resolution, wide-field computational microscopy using open-source hardware," <em>Scientific Reports</em>, vol. 9, p. 7457, 2019.</li>
+                    <li>N. A. Switz, M. V. D'Ambrosio, and D. A. Fletcher, "Low-cost mobile phone microscopy with a reversed mobile phone camera lens," <em>PLoS ONE</em>, vol. 9, 2014.</li>
+                    <li>P. C. Konda, T. Aidukas, and A. R. Harvey, "Miniature Fourier ptychography microscope using Raspberry Pi camera and hardware," in <em>Imaging and Applied Optics 2017</em>, OSA Technical Digest, paper JTu5A.17, 2017.</li>
+                    <li>F. Guzm&aacute;n and E. Vera, "Low-Cost Fourier Ptychography Microscope Kit," in <em>2019 XXII Symposium on Image, Signal Processing and Artificial Vision (STSIVA)</em>, 2019, doi: 10.1109/STSIVA.2019.8730237.</li>
+                </ol>
+                <p>Reconstruction code repository: <a href="https://github.com/johnmeshreki/FPM">github.com/johnmeshreki/FPM</a>.</p>
+            </section>
+
+        </main>
+
+    </div>
+
+    <footer>
+        <p><strong>University of Siegen</strong>: Chair for Computational Sensing &amp; Communications Engineering</p>
+        <p><strong>Supervisors:</strong> Dr. John Meshreki &middot; Dr. Ivo Herke</p>
+        <p>Semester project by Atharva Atul Devare &amp; Shubham Balasaheb Somani, M.Sc. Mechatronics, July 2026.</p>
+    </footer>
+
+</body>
+</html>

@@ -6,6 +6,8 @@ The instrument sequentially illuminates a sample from up to 119 discrete LED ang
 
 > M.Sc. Mechatronics Semester Project — University of Siegen, 2026
 
+**[Live project page](https://gitshubhamsomani.github.io/fourier-ptychography-fpm/)** · **[Full report (PDF)](docs/report_21_07_updated.pdf)**
+
 ---
 
 ## Results
