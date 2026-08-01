@@ -59,7 +59,7 @@
                     strategy chosen for its stability on the low-cost Bayer sensor. To compensate for the
                     mechanical assembly tolerances of the hand-built LED array and 3D-printed housing, a
                     dark-field LED position self-calibration step is applied prior to reconstruction. Optical
-                    alignment was validated on a USAF-1951 resolution target, resolving spatial frequencies up to
+                    alignment was validated on a USAF resolution target, resolving spatial frequencies up to
                     approximately 180 line pairs/mm (&asymp; 2.8 &micro;m features), and a full reconstruction run
                     combining 199 raw low-resolution captures produced a 25-megapixel image with a reported
                     sub-micron resolution of approximately 780 nm.</p>
@@ -92,7 +92,7 @@
                     (Raspberry Pi + 3D-printed opto-mechanics, ~$150 component cost) and the LED self-calibration
                     method of Eckert, Phillips &amp; Waller, adapting both to a different, coarser 17&times;7
                     Unicorn HAT Mini illumination array and a GPU-accelerated EPRY reconstruction pipeline built
-                    from scratch for this project. The reconstruction was evaluated on a USAF-1951 resolution
+                    from scratch for this project. The reconstruction was evaluated on a USAF resolution
                     target and on biological tissue: intestine and mushroom sections.</p>
             </section>
 
@@ -174,7 +174,7 @@
                     <tr><th>Illumination</th><td>Pimoroni Unicorn HAT Mini: 17&times;7 (119-LED) RGB array</td></tr>
                     <tr><th>Reconstruction compute</th><td>PyTorch (GPU-accelerated where available), NumPy, SciPy, OpenCV</td></tr>
                     <tr><th>Working distance</th><td>&asymp; 10 mm (object to reversed camera lens)</td></tr>
-                    <tr><th>Test / reference samples</th><td>USAF-1951 resolution target; small intestine section; mushroom section</td></tr>
+                    <tr><th>Test / reference samples</th><td>USAF resolution target; small intestine section; mushroom section</td></tr>
                 </table>
 
                 <table class="spec-table">
@@ -276,7 +276,7 @@
                 <table class="spec-table">
                     <caption>Table 3. Acquisition / reconstruction runs performed</caption>
                     <tr><th>Sample</th><th>Config.</th><th>Crop size</th><th>Max. iter.</th><th>LED self-cal.</th></tr>
-                    <tr><td>USAF-1951 target (144 lp/mm)</td><td>Intestine/USAF (0.15 NA, 1.5&times;)</td><td>256&times;256</td><td>20</td><td>On</td></tr>
+                    <tr><td>USAF target (144 lp/mm)</td><td>Intestine/USAF (0.15 NA, 1.5&times;)</td><td>256&times;256</td><td>20</td><td>On</td></tr>
                     <tr><td>Small intestine section</td><td>Intestine/USAF (0.15 NA, 1.5&times;)</td><td>256&times;256</td><td>20</td><td>On</td></tr>
                     <tr><td>Mushroom section</td><td>Intestine/USAF (0.15 NA, 1.5&times;)</td><td>256&times;256</td><td>20</td><td>On</td></tr>
                 </table>
@@ -290,7 +290,7 @@
                 <div class="img-pair">
                     <figure class="fig-figure">
                         <img src="assets/raw-usaf-green-1.jpg" alt="Single raw USAF chart capture under green LED illumination">
-                        <figcaption><strong>Fig. 5.</strong> Single-LED raw capture, green channel: USAF-1951 target.</figcaption>
+                        <figcaption><strong>Fig. 5.</strong> Single-LED raw capture, green channel: USAF target.</figcaption>
                     </figure>
                     <figure class="fig-figure">
                         <img src="assets/raw-led-capture-blue.png" alt="Single raw capture under blue LED illumination, biological sample">
@@ -307,7 +307,7 @@
                 </figure>
 
                 <h3>Development process: from underexposed to usable data</h3>
-                <p>Early acquisitions, on both the USAF-1951 target (blue-LED illumination) and an initial
+                <p>Early acquisitions, on both the USAF target (blue-LED illumination) and an initial
                     intestine sample, reconstructed poorly, with low contrast, missing fine detail and visible
                     artefacts. The root cause was severe underexposure, particularly for high-angle (dark-field)
                     LEDs, which starved the pipeline of high-frequency information. Exposure time for dark-field
@@ -315,8 +315,8 @@
                     signal-to-noise. This confirmed the bottleneck was acquisition, not the reconstruction
                     algorithm, and set up all subsequent, successful runs below.</p>
 
-                <h3>USAF-1951 resolution validation</h3>
-                <p>The system was validated against the full USAF-1951 target: optical alignment and focus were
+                <h3>USAF resolution validation</h3>
+                <p>The system was validated against the full USAF target: optical alignment and focus were
                     confirmed by resolving spatial frequencies up to approximately <strong>180&ndash;181
                     line&nbsp;pairs/mm (&asymp; 2.8 &micro;m features)</strong>, exceeding the nominal 144 lp/mm
                     design element used for the quantitative run.</p>
@@ -335,9 +335,9 @@
                 </div>
 
                 <figure class="fig-figure fig-wide">
-                    <img src="assets/usaf-reconstruction.png" alt="Full-field EPRY reconstruction of the USAF-1951 target showing resolved line pairs down to group element 01">
+                    <img src="assets/usaf-reconstruction.png" alt="Full-field EPRY reconstruction of the USAF target showing resolved line pairs down to group element 01">
                     <figcaption><strong>Fig. 9.</strong> Full-field EPRY reconstruction, <code>abs(O)</code>,
-                        USAF-1951 target with resolved elements from 144 lp/mm down through 01, confirming
+                        USAF target with resolved elements from 144 lp/mm down through 01, confirming
                         &asymp;180 lp/mm resolution across the reconstructed FOV.</figcaption>
                 </figure>
 
@@ -373,7 +373,7 @@
                 <h2>Discussion</h2>
                 <p>The results confirm that low-cost, consumer-grade hardware combined with a GPU-accelerated EPRY
                     reconstruction pipeline can achieve meaningful resolution enhancement beyond the native
-                    objective NA. The USAF-1951 validation (&asymp; 180&ndash;181 lp/mm) confirms correct optical
+                    objective NA. The USAF validation (&asymp; 180&ndash;181 lp/mm) confirms correct optical
                     alignment and reversed-lens focusing ahead of full reconstruction. Several practical factors
                     bound performance in this implementation:</p>
                 <ul>
